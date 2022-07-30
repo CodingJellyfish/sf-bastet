@@ -32,6 +32,7 @@ class Board
 		int tetro_x[4];
 		int tetro_y[4];
 		int tetro_type;
+		int rot;
 
 		int score;
 		int lines;
@@ -134,10 +135,10 @@ int main()
 	double timer = 0;
 	double delay = 0;
 	bool hard = false;
-	double fac[10] = {1.0};
-	int level = 0, tmp_level = 0;
+	double fac[10] = {1e20, 1.0};
+	int level = 1, tmp_level = 1;
 
-	for (int i = 1; i < 10; i++)
+	for (int i = 2; i < 10; i++)
 	{
 		fac[i] = fac[i - 1] / 1.5;
 	}
@@ -203,7 +204,7 @@ int main()
 				}
 				if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 				{
-					delay = speed * fac[level] * 0.1;
+					delay = level ? speed * fac[level] * 0.1 : 0;
 				}
 			}
 			if (timer > delay)
@@ -233,7 +234,7 @@ int main()
 			window.draw(assets.text);
 
 			assets.text.setString(std::to_string(table[level + hard * (MAXLEVEL + 1)]));
-			assets.text.setPosition(462, 674);
+			assets.text.setPosition(458, 674);
 			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
 			window.draw(assets.text);
 		}
@@ -329,7 +330,7 @@ int main()
 			window.draw(assets.text);
 
 			assets.text.setString(std::to_string(table[level + hard * (MAXLEVEL + 1)]));
-			assets.text.setPosition(462, 674);
+			assets.text.setPosition(458, 674);
 			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
 			window.draw(assets.text);
 		}
@@ -672,13 +673,13 @@ void Board::initTetro(int tet)
 {
 	const int tetros[7][4] =
 	{
-		3, 5, 4, 6,   // S
-		2, 4, 5, 7,   // Z
-		2, 3, 5, 7,   // L
-		3, 5, 7, 6,   // J
-		3, 5, 4, 7,   // T
-		1, 3, 5, 7,   // I
-		2, 3, 4, 5,   // O
+		5, 1, 2, 4,   // S
+		5, 0, 1, 6,   // Z
+		5, 2, 4, 6,   // L
+		5, 0, 4, 6,   // J
+		5, 1, 4, 6,   // T
+		0, 1, 2, 3,   // I
+		1, 2, 5, 6,   // O
 	};
 
 	for (int i = 0; i < 7; i++)
@@ -699,13 +700,14 @@ void Board::initTetro(int tet)
 	{
 		tetro_type = tet;
 	}
+	rot = 0;
 
 	int n = tetro_type - 1;
 	
 	for (int i = 0; i < 4; i++)
 	{
-		tetro_x[i] = tetros[n][i] % 2;
-		tetro_y[i] = tetros[n][i] / 2 - 3;
+		tetro_x[i] = tetros[n][i] % 4 + 3;
+		tetro_y[i] = tetros[n][i] / 4 - (n != 5);
 	}
 }
 
@@ -740,7 +742,6 @@ void Board::rotateTetro(int dx)
 	{
 		return;
 	}
-
 	bool flag = true;
 	int tmp_x[4], tmp_y[4];
 
@@ -749,32 +750,71 @@ void Board::rotateTetro(int dx)
 		tmp_x[i] = tetro_x[i];
 		tmp_y[i] = tetro_y[i];
 	}
-	for (int i = 1; i <= 4; i++)
+	if (tetro_type == 6)
 	{
-		bool flag2 = true;
+		int ind = dx == 1 ? 2 - (rot & 1) : 1 + (rot & 1);
+		int tx = tmp_x[ind], ty = tmp_y[ind];
+		int cx[5] = {tx, tx - 2, tx + 1, tx - 2, tx + 1};
+		int cy[5] = {ty, ty, ty, ty + 1, ty - 2};
 
-		for (int j = 0; j < 4; j++)
+		for (int i = 0; i < 5; i++)
 		{
-			tetro_x[j] = tmp_x[i % 4] + dx * (tmp_y[i % 4] - tmp_y[j]);
-			tetro_y[j] = dx * (tmp_x[j] - tmp_x[i % 4]) + tmp_y[i % 4];
+			bool flag2 = true;
 
-			if (tetro_x[j] < 0
-				|| tetro_x[j] >= board_col
-				|| (tetro_y[j] >= 0
-				&& (tetro_y[j] >= board_row
-				|| board[tetro_y[j]][tetro_x[j]])))
+			for (int j = 0; j < 4; j++)
 			{
-				flag2 = false;
+				tetro_x[j] = cx[i] - dx * (cy[i] - tmp_y[j]);
+				tetro_y[j] = cy[i] - dx * (tmp_x[j] - cx[i]);
+
+				if (tetro_x[j] < 0
+					|| tetro_x[j] >= board_col
+					|| (tetro_y[j] >= 0
+					&& (tetro_y[j] >= board_row
+					|| board[tetro_y[j]][tetro_x[j]])))
+				{
+					flag2 = false;
+					break;
+				}
+			}
+			if (flag2)
+			{
+				flag = false;
 				break;
 			}
 		}
-		if (flag2)
+	}
+	else
+	{
+		int tx = tmp_x[0], ty = tmp_y[0];
+		int cx[5] = {tx, tx - 1, tx - 1, tx, tx - 1};
+		int cy[5] = {ty, ty, ty - 1, ty + 2, ty + 2};
+
+		for (int i = 0; i < 5; i++)
 		{
-			flag = false;
-			break;
+			bool flag2 = true;
+
+			for (int j = 0; j < 4; j++)
+			{
+				tetro_x[j] = cx[i] + dx * (cy[i] - tmp_y[j]);
+				tetro_y[j] = dx * (tmp_x[j] - cx[i]) + cy[i];
+
+				if (tetro_x[j] < 0
+					|| tetro_x[j] >= board_col
+					|| (tetro_y[j] >= 0
+					&& (tetro_y[j] >= board_row
+					|| board[tetro_y[j]][tetro_x[j]])))
+				{
+					flag2 = false;
+					break;
+				}
+			}
+			if (flag2)
+			{
+				flag = false;
+				break;
+			}
 		}
 	}
-
 	if (flag)
 	{
 		for (int i = 0; i < 4; i++)
@@ -782,6 +822,10 @@ void Board::rotateTetro(int dx)
 			tetro_x[i] = tmp_x[i];
 			tetro_y[i] = tmp_y[i];
 		}
+	}
+	else
+	{
+		rot = (rot + dx + 4) % 4;
 	}
 }
 
