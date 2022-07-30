@@ -25,7 +25,7 @@ class Board
 {
 	private:
 
-		int **board;
+		int **_board, **board;
 		int board_row;
 		int board_col;
 
@@ -43,12 +43,17 @@ class Board
 
 		double occur[7];
 
+		unsigned long long *_hashline, *hashline;
+		bool *_change, *change;
+
 	public:
 
 		Board(int row, int col, int tetro, int** begin_board = NULL, int que = 0);
 		~Board();
 
-		unsigned hashBoard();
+		void updateHash();
+
+		unsigned long long hashBoard();
 
 		int evaluateBoard();
 
@@ -56,7 +61,7 @@ class Board
 
 		int checkLine();
 
-		double searchMax(int tet, std::set<unsigned> &set);
+		double searchMax(int tet, std::set<unsigned long long> &set, int max);
 
 		int selectTetro();
 
@@ -74,6 +79,24 @@ class Board
 
 		void setState(int stat) { state = stat; }
 };
+
+void drawMisc(Assets *assets, sf::RenderWindow *window, int level, bool hard, int *table)
+{
+	assets->text.setString("Lvl " + std::to_string(level));	
+	assets->text.setPosition(462, 616);
+	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
+	window->draw(assets->text);
+
+	assets->text.setString("High:");	
+	assets->text.setPosition(462, 646);
+	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
+	window->draw(assets->text);
+
+	assets->text.setString(std::to_string(table[level + hard * (MAXLEVEL + 1)]));
+	assets->text.setPosition(458, 674);
+	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
+	window->draw(assets->text);
+}
 
 int main()
 {
@@ -223,20 +246,7 @@ int main()
 
 			board->drawBoard(&window, &assets);
 
-			assets.text.setString("Lvl " + std::to_string(level));	
-			assets.text.setPosition(462, 616);
-			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
-			window.draw(assets.text);
-
-			assets.text.setString("High:");	
-			assets.text.setPosition(462, 646);
-			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
-			window.draw(assets.text);
-
-			assets.text.setString(std::to_string(table[level + hard * (MAXLEVEL + 1)]));
-			assets.text.setPosition(458, 674);
-			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
-			window.draw(assets.text);
+			drawMisc(&assets, &window, level, hard, table);
 		}
 		else
 		{
@@ -287,8 +297,8 @@ int main()
 				if (start)
 				{
 					delete board;
-					int que = hard ? 0 : rand() % 7 + 1;
-					board = new Board(20, 10, rand() % 4 + 3, NULL, que);
+					int que = hard ? 0 : 6;
+					board = new Board(20, 10, 7, NULL, que);
 					board->setState(1);
 				}
 			}
@@ -298,17 +308,18 @@ int main()
 			assets.menu.setPosition(64, 288);
 			window.draw(assets.menu);
 
+			std::string instruction = "Space: choose\n\nEnter: start";
 			if (board->getState() == 0)
 			{
-				assets.text.setString("Space: choose\n\nEnter: start");
+				assets.text.setString(instruction);
 			}
 			else if (board->getState() == 2)
 			{
-				assets.text.setString("P: continue\n\nSpace: choose\n\nEnter: restart");
+				assets.text.setString("P: continue\n\n" + instruction);
 			}
 			else
 			{
-				assets.text.setString("You lose!\n\nSpace: choose\n\nEnter: restart");
+				assets.text.setString("You lose!\n\n" + instruction);
 			}
 			assets.text.setPosition(192, 312);
 			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
@@ -319,20 +330,7 @@ int main()
 			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
 			window.draw(assets.text);
 
-			assets.text.setString("Lvl " + std::to_string(level));	
-			assets.text.setPosition(462, 616);
-			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
-			window.draw(assets.text);
-
-			assets.text.setString("High:");	
-			assets.text.setPosition(462, 646);
-			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
-			window.draw(assets.text);
-
-			assets.text.setString(std::to_string(table[level + hard * (MAXLEVEL + 1)]));
-			assets.text.setPosition(458, 674);
-			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
-			window.draw(assets.text);
+			drawMisc(&assets, &window, level, hard, table);
 		}
 		window.display(); 
 	}
@@ -342,12 +340,18 @@ int main()
 
 Board::Board(int row, int col, int tetro, int** begin_board, int que)
 {
-	board = new int*[row];
+	_board = new int*[row + 5];
 
-	for (int i = 0; i < row; i++)
+	for (int i = 0; i < row + 5; i++)
 	{
-		board[i] = new int[col]();
+		_board[i] = new int[col]();
 	}
+	_hashline = new unsigned long long[row + 5]();
+	_change = new bool[row + 5]();
+
+	board = _board + 4;
+	hashline = _hashline + 4;
+	change = _change + 4;
 
 	board_row = row;
 	board_col = col;
@@ -355,7 +359,7 @@ Board::Board(int row, int col, int tetro, int** begin_board, int que)
 	score = lines = 0;
 
 	queue = que;
-	this->initTetro(tetro);
+	initTetro(tetro);
 
 	for (int i = 0; i < 7; i++)
 	{
@@ -367,7 +371,9 @@ Board::Board(int row, int col, int tetro, int** begin_board, int que)
 		for (int i = 0; i < row; i++)
 		{
 			memcpy(board[i], begin_board[i], sizeof(int) * col);
+			change[i] = true;
 		}
+		updateHash();
 	}
 }
 
@@ -375,17 +381,19 @@ Board::~Board()
 {
 	for (int i = 0; i < board_row; i++)
 	{
-		delete[] board[i];
+		delete[] _board[i];
 	}
-	delete[] board;
+	delete[] _board;
+	delete[] _hashline;
+	delete[] _change;
 }
 
-unsigned Board::hashBoard()
+void Board::updateHash()
 {
-	unsigned hash = 0;
+	unsigned long long hash = 0;
 	for (int i = 0; i < 4; i++)
 	{
-		if (tetro_y[i] < 0)
+		if (tetro_y[i] < 0 || board[tetro_y[i]][tetro_x[i]])
 		{
 			continue;
 		}
@@ -393,41 +401,42 @@ unsigned Board::hashBoard()
 	}
 	for (int i = 0; i < board_row; i++)
 	{
-		for (int j = 0; j < board_col; j++)
+		if (change[i])
 		{
-			hash = hash * 11 + board[i][j];
+			hashline[i] = 0;
+			for (int j = 0; j < board_col; j++)
+			{
+				hashline[i] = hashline[i] * 11 + board[i][j];
+			}
+			change[i] = false;
 		}
 	}
 	for (int i = 0; i < 4; i++)
 	{
-		if (tetro_y[i] < 0)
+		if (tetro_y[i] < 0 || board[tetro_y[i]][tetro_x[i]] != 8)
 		{
 			continue;
 		}
 		board[tetro_y[i]][tetro_x[i]] = 0;
 	}
+}
+
+unsigned long long Board::hashBoard()
+{
+	unsigned long long hash = 0;
+
+	for (int i = 0; i < board_row; i++)
+	{
+		hash = hash * 25937424601ull + hashline[i];
+	}
+
 	return hash;
 }
 
 int Board::evaluateBoard()
 {
-	int ret = 0, min = board_row;
+	int ret = checkLine() * 100, min = board_row;
 
-	for (int i = board_row - 1; i >= 0; i--)
-	{
-		int count = 0;
-		for (int j = 0; j < board_col; j++)
-		{
-			if (board[i][j])
-			{
-				count++;
-			}
-		}
-		if (count == board_col)
-		{
-			ret += 10000;
-		}
-	}
 	for (int i = 0; i < board_col; i++)
 	{
 		int cnt = 0;
@@ -533,17 +542,31 @@ int Board::checkLine()
 		else
 		{
 			score += sum;
-			lines += 1;
+			ret += sum;
 			sum += 100;
-			ret += 1;
 		}
+		change[i] = 1;
 	}
+	updateHash();
 	return ret;
 }
 
-double Board::searchMax(int tet, std::set<unsigned> &set)
+#define UPDATE {\
+	res = searchMax(tet, set, dep + 1);\
+	ret = std::max(res, ret);\
+	for (int i = 0; i < 4; i++)\
+	{\
+		change[tetro_y[i]] = true;\
+		tetro_x[i] = tmp_x[i];\
+		tetro_y[i] = tmp_y[i];\
+		change[tetro_y[i]] = true;\
+	}\
+	updateHash();\
+}
+
+double Board::searchMax(int tet, std::set<unsigned long long> &set, int dep)
 {
-	if (!set.insert(this->hashBoard()).second)
+	if (!set.insert(hashBoard()).second)
 	{
 		return 0.0;
 	}
@@ -557,91 +580,42 @@ double Board::searchMax(int tet, std::set<unsigned> &set)
 		tmp_y[i] = tetro_y[i];
 	}
 
-	if (this->dropTetro())
+	if (dropTetro())
 	{
-		if (!tet)
-		{
-			ret = this->evaluateBoard();
-			for (int i = 0; i < 4; i++)
-			{
-				if (tetro_y[i] < 0)
-				{
-					return 0.0;
-				}
-				board[tetro_y[i]][tetro_x[i]] = 0;
-			}
-			return ret;
-		}
-		else
-		{
-			Board emu(board_row, board_col, tet, board);
-			for (int i = 0; i < 4; i++)
-			{
-				if (tetro_y[i] < 0)
-				{
-					return 0.0;
-				}
-				board[tetro_y[i]][tetro_x[i]] = 0;
-			}
-			std::set<unsigned> set2;
-			res = emu.checkLine() * 1000 - 600;
-			if (res < 0)
-			{
-				res = 0;
-			}
-			res = emu.searchMax(0, set2);
-			ret = std::max(res, ret);
-		}
-	}
-	else
-	{
-		res = this->searchMax(tet, set);
-		ret = std::max(res, ret);
+		Board emu(board_row, board_col, tet ? tet : 1, board);
+		bool flag = true;
+	
 		for (int i = 0; i < 4; i++)
 		{
-			tetro_x[i] = tmp_x[i];
-			tetro_y[i] = tmp_y[i];
+			board[tetro_y[i]][tetro_x[i]] = 0;
+			change[tetro_y[i]] = true;
 		}
-	}
+		updateHash();
 
-	this->moveTetro(-1);
-	res = this->searchMax(tet, set);
-	ret = std::max(res, ret);
-	for (int i = 0; i < 4; i++)
-	{
-		tetro_x[i] = tmp_x[i];
-		tetro_y[i] = tmp_y[i];
+		if (!tet)
+		{
+			return flag ? 0.0 : emu.evaluateBoard();
+		}
+		std::set<unsigned long long> set2;
+		res = emu.checkLine() * 100;
+		res += emu.searchMax(0, set2, dep + 1);
+		ret = std::max(res, ret);
 	}
+	else UPDATE
 
-	this->moveTetro(1);
-	res = this->searchMax(tet, set);
-	ret = std::max(res, ret);
-	for (int i = 0; i < 4; i++)
-	{
-		tetro_x[i] = tmp_x[i];
-		tetro_y[i] = tmp_y[i];
-	}
-
-	this->rotateTetro(-1);
-	res = this->searchMax(tet, set);
-	ret = std::max(res, ret);
-	for (int i = 0; i < 4; i++)
-	{
-		tetro_x[i] = tmp_x[i];
-		tetro_y[i] = tmp_y[i];
-	}
-
-	this->rotateTetro(1);
-	res = this->searchMax(tet, set);
-	ret = std::max(res, ret);
-	for (int i = 0; i < 4; i++)
-	{
-		tetro_x[i] = tmp_x[i];
-		tetro_y[i] = tmp_y[i];
-	}
+	moveTetro(-1);
+	UPDATE
+	moveTetro(1);
+	UPDATE
+	rotateTetro(-1);
+	UPDATE
+	rotateTetro(1);
+	UPDATE
 
 	return ret;
 }
+
+#undef UPDATE
 
 int Board::selectTetro()
 {
@@ -650,9 +624,9 @@ int Board::selectTetro()
 
 	for (int i = 1; i <= 7; i++)
 	{
-		std::set<unsigned> set;
+		std::set<unsigned long long> set;
 		Board emu(board_row, board_col, queue ? queue : i, board);
-		double res = emu.searchMax(queue ? i : 0, set) - occur[i - 1];
+		double res = emu.searchMax(queue ? i : 0, set, 0) - occur[i - 1];
 		if (res < min)
 		{
 			min2 = min;
@@ -673,8 +647,8 @@ void Board::initTetro(int tet)
 {
 	const int tetros[7][4] =
 	{
-		5, 1, 2, 4,   // S
-		5, 0, 1, 6,   // Z
+		5, 0, 1, 6,   // S
+		5, 1, 2, 4,   // Z
 		5, 2, 4, 6,   // L
 		5, 0, 4, 6,   // J
 		5, 1, 4, 6,   // T
@@ -700,6 +674,7 @@ void Board::initTetro(int tet)
 	{
 		tetro_type = tet;
 	}
+
 	rot = 0;
 
 	int n = tetro_type - 1;
@@ -718,11 +693,11 @@ void Board::moveTetro(int dx)
 	for (int i = 0; i < 4; i++)
 	{
 		tetro_x[i] += dx;
+		change[tetro_y[i]] = true;
 
 		if (tetro_x[i] < 0
 			 || tetro_x[i] >= board_col
-			 || (tetro_y[i] >= 0
-			 && board[tetro_y[i]][tetro_x[i]]))
+			 || board[tetro_y[i]][tetro_x[i]])
 		{
 			flag = true;
 		}
@@ -734,6 +709,7 @@ void Board::moveTetro(int dx)
 			tetro_x[i] -= dx;
 		}
 	}
+	updateHash();
 }
 
 void Board::rotateTetro(int dx)
@@ -749,13 +725,28 @@ void Board::rotateTetro(int dx)
 	{
 		tmp_x[i] = tetro_x[i];
 		tmp_y[i] = tetro_y[i];
+		change[tetro_y[i]] = true;
 	}
+	if (dx == -1)
+	{
+		rot = (rot + 3) % 4;
+	}
+
 	if (tetro_type == 6)
 	{
-		int ind = dx == 1 ? 2 - (rot & 1) : 1 + (rot & 1);
+		int ind = dx == 1 ? 1 + (rot & 1) : 2 - (rot & 1);
+		int fx = dx * ((rot ^ (rot >> 1)) & 1 ? -1 : 1);
+		int fy = dx * (rot & 2 ? -1 : 1);
 		int tx = tmp_x[ind], ty = tmp_y[ind];
-		int cx[5] = {tx, tx - 2, tx + 1, tx - 2, tx + 1};
-		int cy[5] = {ty, ty, ty, ty + 1, ty - 2};
+		int cx[5] = {0, -2 * fx, fx, -2 * fx, fx};
+		int cy[5] = {0, 0, 0, -fy, 2 * fy};
+
+		if (rot & 1)
+		{
+			std::swap(cx[1], cx[2]);
+			std::swap(cx[3], cy[3]);
+			std::swap(cx[4], cy[4]);
+		}
 
 		for (int i = 0; i < 5; i++)
 		{
@@ -763,14 +754,13 @@ void Board::rotateTetro(int dx)
 
 			for (int j = 0; j < 4; j++)
 			{
-				tetro_x[j] = cx[i] - dx * (cy[i] - tmp_y[j]);
-				tetro_y[j] = cy[i] - dx * (tmp_x[j] - cx[i]);
+				tetro_x[j] = tx - dx * (ty - tmp_y[j]) + cx[i] - cy[i];
+				tetro_y[j] = ty - dx * (tmp_x[j] - tx) + cy[i] + cx[i];
 
 				if (tetro_x[j] < 0
 					|| tetro_x[j] >= board_col
-					|| (tetro_y[j] >= 0
-					&& (tetro_y[j] >= board_row
-					|| board[tetro_y[j]][tetro_x[j]])))
+					|| tetro_y[j] >= board_row
+					|| board[tetro_y[j]][tetro_x[j]])
 				{
 					flag2 = false;
 					break;
@@ -786,8 +776,10 @@ void Board::rotateTetro(int dx)
 	else
 	{
 		int tx = tmp_x[0], ty = tmp_y[0];
-		int cx[5] = {tx, tx - 1, tx - 1, tx, tx - 1};
-		int cy[5] = {ty, ty, ty - 1, ty + 2, ty + 2};
+		int fx = dx * ((rot ^ (rot >> 1)) & 1 ? -1 : 1);
+		int fy = dx * (rot & 1 ? -1 : 1);
+		int cx[5] = {tx, tx - fx, tx - fx, tx, tx - fx};
+		int cy[5] = {ty, ty, ty - fy, ty + 2 * fy, ty + 2 * fy};
 
 		for (int i = 0; i < 5; i++)
 		{
@@ -800,9 +792,8 @@ void Board::rotateTetro(int dx)
 
 				if (tetro_x[j] < 0
 					|| tetro_x[j] >= board_col
-					|| (tetro_y[j] >= 0
-					&& (tetro_y[j] >= board_row
-					|| board[tetro_y[j]][tetro_x[j]])))
+					|| tetro_y[j] >= board_row
+					|| board[tetro_y[j]][tetro_x[j]])
 				{
 					flag2 = false;
 					break;
@@ -825,7 +816,16 @@ void Board::rotateTetro(int dx)
 	}
 	else
 	{
-		rot = (rot + dx + 4) % 4;
+		for (int i = 0; i < 4; i++)
+		{
+			change[tetro_y[i]] = true;
+		}
+	}
+	updateHash();
+
+	if ((dx == 1) ^ flag)
+	{
+		rot = (rot + 1) % 4;
 	}
 }
 
@@ -836,10 +836,10 @@ bool Board::dropTetro()
 	for (int i = 0; i < 4; i++)
 	{
 		tetro_y[i] += 1;
-
-		if (tetro_y[i] >= 1
-			 && (tetro_y[i] >= board_row
-			 || board[tetro_y[i]][tetro_x[i]]))
+		change[tetro_y[i]] = true;
+		change[tetro_y[i] - 1] = true;
+		if (tetro_y[i] == board_row
+			 || board[tetro_y[i]][tetro_x[i]])
 		{
 			flag = true;
 		}
@@ -849,17 +849,19 @@ bool Board::dropTetro()
 		for (int i = 0; i < 4; i++)
 		{
 			tetro_y[i]--;
+
 			if (tetro_y[i] <= 0)
 			{
 				state = 3;
-				if (tetro_y[i] < 0)
-				{
-					continue;
-				}
 			}
-			board[tetro_y[i]][tetro_x[i]] = tetro_type;
+			if (tetro_y[i] >= 0)
+			{
+				board[tetro_y[i]][tetro_x[i]] = tetro_type;
+			}
 		}
 	}
+	updateHash();
+
 	return flag;
 }
 
