@@ -297,8 +297,8 @@ int main()
 				if (start)
 				{
 					delete board;
-					int que = hard ? 0 : 6;
-					board = new Board(20, 10, 7, NULL, que);
+					int que = hard ? 0 : rand() % 7 + 1;
+					board = new Board(20, 10, rand() % 4 + 3, NULL, que);
 					board->setState(1);
 				}
 			}
@@ -398,6 +398,7 @@ void Board::updateHash()
 			continue;
 		}
 		board[tetro_y[i]][tetro_x[i]] = 8;
+		
 	}
 	for (int i = 0; i < board_row; i++)
 	{
@@ -429,7 +430,7 @@ unsigned long long Board::hashBoard()
 	{
 		hash = hash * 25937424601ull + hashline[i];
 	}
-
+	
 	return hash;
 }
 
@@ -566,6 +567,7 @@ int Board::checkLine()
 
 double Board::searchMax(int tet, std::set<unsigned long long> &set, int dep)
 {
+	
 	if (!set.insert(hashBoard()).second)
 	{
 		return 0.0;
@@ -583,12 +585,16 @@ double Board::searchMax(int tet, std::set<unsigned long long> &set, int dep)
 	if (dropTetro())
 	{
 		Board emu(board_row, board_col, tet ? tet : 1, board);
-		bool flag = true;
+		bool flag = false;
 	
 		for (int i = 0; i < 4; i++)
 		{
 			board[tetro_y[i]][tetro_x[i]] = 0;
 			change[tetro_y[i]] = true;
+			if (tetro_y[i] <= 0)
+			{
+				flag = true;
+			}
 		}
 		updateHash();
 
@@ -627,6 +633,7 @@ int Board::selectTetro()
 		std::set<unsigned long long> set;
 		Board emu(board_row, board_col, queue ? queue : i, board);
 		double res = emu.searchMax(queue ? i : 0, set, 0) - occur[i - 1];
+
 		if (res < min)
 		{
 			min2 = min;
