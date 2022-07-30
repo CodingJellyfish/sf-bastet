@@ -10,12 +10,14 @@
 
 const double SPEED_NORMAL = 0.5;
 const double SPEED_QUICK = 0.05;
-const double DECLINE = 0.9;
+
+const double DECLINE = 0.99;
 
 struct Assets
 {
 	sf::Sprite board;
 	sf::Sprite tiles;
+	sf::Sprite menu;
 	sf::Text text;
 };
 
@@ -34,14 +36,18 @@ class Board
 		int score;
 		int lines;
 
+		int queue;
+
+		int state;
+
 		double tetro_fac[7];
 
 	public:
 
-		Board(int row, int col, int tetro, int** begin_board = NULL);
+		Board(int row, int col, int tetro, int** begin_board = NULL, int que = 0);
 		~Board();
 
-		unsigned long long hashBoard();
+		unsigned hashBoard();
 
 		int evaluateBoard();
 
@@ -49,7 +55,7 @@ class Board
 
 		int checkLine();
 
-		double searchMax(int tet, std::set<unsigned long long> &set);
+		double searchMax(int tet, std::set<unsigned> &set);
 
 		int selectTetro();
 
@@ -62,6 +68,10 @@ class Board
 		bool dropTetro();
 
 		void harddropTetro();
+
+		int getState() { return state; }
+
+		void setState(int stat) { state = stat; }
 };
 
 int main()
@@ -70,7 +80,8 @@ int main()
 
 	sf::RenderWindow window(sf::VideoMode(576, 768), "Bastet!");
 
-	Board board(20, 10, rand() % 7 + 1);
+	Board *board = new Board(20, 10, 0);
+	board->setState(0);
 
 	sf::Clock clock;
 	Assets assets;
@@ -83,104 +94,198 @@ int main()
 	tex_tiles.loadFromFile("tiles.png");
 	assets.tiles = sf::Sprite(tex_tiles);
 
+	sf::Texture tex_menu;
+	tex_menu.loadFromFile("menu.png");
+	assets.menu = sf::Sprite(tex_menu);
+
 	sf::Font font;
 	font.loadFromFile("dogicapixelbold.ttf");
 	assets.text = sf::Text("", font, 18);
 
 	double timer = 0;
 	double delay = SPEED_NORMAL;
+	bool hard = false;
 
 	while (window.isOpen())
 	{
-		float time = clock.getElapsedTime().asSeconds();
-		timer += time;
-		clock.restart();
-
-		sf::Event e;
-		bool rotate = false;
-		int dx = 0;
-		int dy = 0;
-		bool harddrop = false;
-
-		while (window.pollEvent(e))
+		if (board->getState() == 1)
 		{
-			if (e.type == sf::Event::Closed)
-			{
-				window.close();
-			}
+			float time = clock.getElapsedTime().asSeconds();
+			timer += time;
+			clock.restart();
 
-			if (e.type == sf::Event::KeyPressed)
+			sf::Event e;
+			int dx = 0;
+			int dy = 0;
+			bool harddrop = false;
+			bool pause = false;
+
+			while (window.pollEvent(e))
 			{
-				switch (e.key.code)
+				if (e.type == sf::Event::Closed)
 				{
-				case sf::Keyboard::Up:
+					window.close();
+				}
 
-					dy = -1;
-					break;
+				if (e.type == sf::Event::KeyPressed)
+				{
+					switch (e.key.code)
+					{
+					case sf::Keyboard::Up:
 
-				case sf::Keyboard::Space:
+						dy = -1;
+						break;
 
-					dy = 1;
-					break;
+					case sf::Keyboard::Space:
 
-				case sf::Keyboard::Left:
+						dy = 1;
+						break;
 
-					dx = -1;
-					break;
+					case sf::Keyboard::Left:
 
-				case sf::Keyboard::Right:
+						dx = -1;
+						break;
 
-					dx = 1;
-					break;
+					case sf::Keyboard::Right:
 
-				case sf::Keyboard::Enter:
+						dx = 1;
+						break;
 
-					harddrop = true;
-					break;
+					case sf::Keyboard::Enter:
+
+						harddrop = true;
+						break;
+					
+					case sf::Keyboard::P:
+
+						pause = true;
+						break;
+					}
+				}
+				if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+				{
+					delay = SPEED_QUICK;
+				}
+
+				if (dx)
+				{
+					board->moveTetro(dx);
+				}
+
+				if (dy)
+				{
+					board->rotateTetro(dy);
+				}
+
+				if (harddrop)
+				{
+					board->harddropTetro();
+					if (board->getState() == 1)
+					{
+						board->initTetro(board->selectTetro());
+					}
+				}
+
+				if (pause)
+				{
+					board->setState(2);
 				}
 			}
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+			if (timer > delay)
 			{
-				delay = SPEED_QUICK;
+				if (board->dropTetro())
+				{
+					if (board->getState() == 1)
+					{
+						board->initTetro(board->selectTetro());
+					}
+				}
+				timer = 0;
 			}
+			board->checkLine();
 
-			if (dx)
-			{
-				board.moveTetro(dx);
-			}
+			delay = SPEED_NORMAL;
 
-			if (dy)
-			{
-				board.rotateTetro(dy);
-			}
-
-			if (harddrop)
-			{
-				board.harddropTetro();
-				board.initTetro(board.selectTetro());
-			}
+			board->drawBoard(&window, &assets);
 		}
-		if (timer > delay)
+		else
 		{
-			if (board.dropTetro())
+			sf::Event e;
+			bool change = false;
+			bool start = false;
+
+			while (window.pollEvent(e))
 			{
-				board.initTetro(board.selectTetro());
+				if (e.type == sf::Event::Closed)
+				{
+					window.close();
+				}
+				if (e.type == sf::Event::KeyPressed)
+				{
+					switch (e.key.code)
+					{
+					case sf::Keyboard::Space:
+
+						change = true;
+						break;
+
+					case sf::Keyboard::Enter:
+
+						start = true;
+						break;
+					}
+				}
+				if (sf::Keyboard::isKeyPressed(sf::Keyboard::P) && board->getState() == 2)
+				{
+					board->setState(1);
+				}
+
+				if (change)
+				{
+					hard = !hard;
+				}
+				
+				if (start)
+				{
+					delete board;
+					board = new Board(20, 10, rand() % 7 + 1, NULL, hard ? 0 : rand() % 7 + 1);
+					board->setState(1);
+				}
 			}
-			timer = 0;
+
+			board->drawBoard(&window, &assets);
+
+			assets.menu.setPosition(64, 288);
+			window.draw(assets.menu);
+
+			if (board->getState() == 0)
+			{
+				assets.text.setString("Space: choose\n\nEnter: start");
+			}
+			else if (board->getState() == 2)
+			{
+				assets.text.setString("P: continue\n\nSpace: choose\n\nEnter: restart");
+			}
+			else
+			{
+				assets.text.setString("You lose!\n\nSpace: choose\n\nEnter: restart");
+			}
+			assets.text.setPosition(192, 312);
+			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
+			window.draw(assets.text);
+
+			assets.text.setString("*");	
+			assets.text.setPosition(140 + hard * 100, 440);
+			assets.text.setOrigin(assets.text.getGlobalBounds().width / 2, 0);
+			window.draw(assets.text);
 		}
-		board.checkLine();
-
-		delay = SPEED_NORMAL;
-
-		board.drawBoard(&window, &assets);
-
 		window.display(); 
 	}
 
 	return 0;
 }
 
-Board::Board(int row, int col, int tetro, int** begin_board)
+Board::Board(int row, int col, int tetro, int** begin_board, int que)
 {
 	board = new int*[row];
 
@@ -194,11 +299,12 @@ Board::Board(int row, int col, int tetro, int** begin_board)
 
 	score = lines = 0;
 
+	queue = que;
 	this->initTetro(tetro);
 
 	for (int i = 0; i < 7; i++)
 	{
-		tetro_fac[i] = 0.5 + 0.5 * rand() / RAND_MAX;
+		tetro_fac[i] = 0.9 + 0.1 * rand() / RAND_MAX;
 	}
 
 	if (begin_board)
@@ -219,9 +325,9 @@ Board::~Board()
 	delete[] board;
 }
 
-unsigned long long Board::hashBoard()
+unsigned Board::hashBoard()
 {
-	unsigned long long hash = 0;
+	unsigned hash = 0;
 	for (int i = 0; i < 4; i++)
 	{
 		if (tetro_y[i] < 0)
@@ -250,24 +356,28 @@ unsigned long long Board::hashBoard()
 
 int Board::evaluateBoard()
 {
-	int ret = 0, sum = 500, min = board_row;
+	int ret = 0;
 
 	for (int i = board_row - 1; i >= 0; i--)
-    {
-        int count = 0;
-        for (int j = 0; j < board_col; j++)
-        {
-            if (board[i][j])
-			{
-                count++;
-			}
-        }
-        if (count == board_col)
+	{
+		int count = 0;
+		for (int j = 0; j < board_col; j++)
 		{
-			ret += sum;
-			sum *= 5;
+			if (board[i][j])
+			{
+				count++;
+			}
 		}
-    }
+		if (count == board_col)
+		{
+			ret += 1000;
+		}
+	}
+	ret -= 600;
+	if (ret < 0)
+	{
+		ret = 0;
+	}
 	for (int i = 0; i < board_col; i++)
 	{
 		int cnt = 0;
@@ -276,15 +386,42 @@ int Board::evaluateBoard()
 			cnt++;
 		}
 		ret += cnt;
-		min = std::min(min, cnt);
 	}
-	ret += min;
 	return ret;
 }
 
 void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 {
 	window->draw(assets->board);
+
+	assets->text.setFillColor(sf::Color(153, 71, 0));
+
+	assets->text.setString(std::to_string(lines));
+	assets->text.setPosition(458, 516);
+	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
+	window->draw(assets->text);
+
+	assets->text.setString(std::to_string(score));
+	assets->text.setPosition(458, 580);
+	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
+	window->draw(assets->text);
+
+	if (queue)
+	{
+		sf::IntRect rect = sf::IntRect(queue * 32 - 32, 0, 32, 36);
+		assets->tiles.setTextureRect(rect);
+		assets->tiles.setPosition(440, 408);
+		assets->tiles.setScale(1.5f, 1.5f);
+		window->draw(assets->tiles);
+		assets->tiles.setScale(1.0f, 1.0f);
+	}
+	else
+	{
+		assets->text.setString("?");
+		assets->text.setPosition(460, 420);
+		assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
+		window->draw(assets->text);
+	}
 
 	for (int i = 0; i < board_row; i++)
 	{
@@ -302,6 +439,10 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 			window->draw(assets->tiles);
 		}
 	}
+	if (tetro_type == 0)
+	{
+		return;
+	}
 	for (int i = 0; i < 4; i++)
 	{
 		if (tetro_y[i] < 0)
@@ -315,53 +456,41 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 
 		window->draw(assets->tiles);
 	}
-	
-	assets->text.setFillColor(sf::Color(153, 71, 0));
-
-	assets->text.setString(std::to_string(lines));
-	assets->text.setPosition(458, 516);
-	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
-	window->draw(assets->text);
-
-	assets->text.setString(std::to_string(score));
-	assets->text.setPosition(458, 580);
-	assets->text.setOrigin(assets->text.getGlobalBounds().width / 2, 0);
-	window->draw(assets->text);
 }
 
 int Board::checkLine()
 {
-    int k = board_row - 1;
+	int k = board_row - 1;
 	int sum = 100;
 	int ret = 0;
 
-    for (int i = board_row - 1; i > 0; i--)
-    {
-        int count = 0;
-        for (int j = 0; j < board_col; j++)
-        {
-            if (board[i][j])
-			{
-                count++;
-			}
-            board[k][j] = board[i][j];
-        }
-        if (count < board_col)
+	for (int i = board_row - 1; i > 0; i--)
+	{
+		int count = 0;
+		for (int j = 0; j < board_col; j++)
 		{
-            k--;
+			if (board[i][j])
+			{
+				count++;
+			}
+			board[k][j] = board[i][j];
+		}
+		if (count < board_col)
+		{
+			k--;
 		}
 		else
 		{
-			ret += sum;
+			score += sum;
 			lines += 1;
 			sum += 100;
+			ret += 1;
 		}
-    }
-	score += ret;
+	}
 	return ret;
 }
 
-double Board::searchMax(int tet, std::set<unsigned long long> &set)
+double Board::searchMax(int tet, std::set<unsigned> &set)
 {
 	if (!set.insert(this->hashBoard()).second)
 	{
@@ -372,10 +501,10 @@ double Board::searchMax(int tet, std::set<unsigned long long> &set)
 	int tmp_x[4], tmp_y[4];
 
 	for (int i = 0; i < 4; i++)
-    {
-        tmp_x[i] = tetro_x[i];
+	{
+		tmp_x[i] = tetro_x[i];
 		tmp_y[i] = tetro_y[i];
-    }
+	}
 
 	if (this->dropTetro())
 	{
@@ -403,9 +532,13 @@ double Board::searchMax(int tet, std::set<unsigned long long> &set)
 				}
 				board[tetro_y[i]][tetro_x[i]] = 0;
 			}
-			std::set<unsigned long long> set2;
-			res = emu.checkLine();
-			res += emu.searchMax(0, set2);
+			std::set<unsigned> set2;
+			res = emu.checkLine() * 1000 - 600;
+			if (res < 0)
+			{
+				res = 0;
+			}
+			res = emu.searchMax(0, set2);
 			ret = std::max(res, ret);
 		}
 	}
@@ -466,11 +599,9 @@ int Board::selectTetro()
 
 	for (int i = 1; i <= 7; i++)
 	{
-		std::set<unsigned long long> set;
-		Board emu(board_row, board_col, i, board);
-		double res = emu.searchMax(0, set);
-
-		printf("%lf\n\n", tetro_fac[i - 1] * res);
+		std::set<unsigned> set;
+		Board emu(board_row, board_col, queue ? queue : i, board);
+		double res = emu.searchMax(queue ? i : 0, set);
 
 		if (tetro_fac[i - 1] * res < min)
 		{
@@ -494,7 +625,15 @@ void Board::initTetro(int tet)
 		2, 3, 4, 5,   // O
 	};
 
-	tetro_type = tet;
+	if (queue)
+	{
+		tetro_type = queue;
+		queue = tet;
+	}
+	else
+	{
+		tetro_type = tet;
+	}
 
 	for (int i = 0; i < 7; i++)
 	{
@@ -504,7 +643,7 @@ void Board::initTetro(int tet)
 		}
 		else
 		{
-			tetro_fac[i] = 1.0;
+			tetro_fac[i] += (1.0 - tetro_fac[i]) / 2.0;
 		}
 	}
 
@@ -521,9 +660,9 @@ void Board::moveTetro(int dx)
 {
 	bool flag = false;
 	
-    for (int i = 0; i < 4; i++)
-    {
-        tetro_x[i] += dx;
+	for (int i = 0; i < 4; i++)
+	{
+		tetro_x[i] += dx;
 
 		if (tetro_x[i] < 0
 			 || tetro_x[i] >= board_col
@@ -532,8 +671,8 @@ void Board::moveTetro(int dx)
 		{
 			flag = true;
 		}
-    }
-    if (flag)
+	}
+	if (flag)
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -550,40 +689,40 @@ void Board::rotateTetro(int dx)
 	}
 
 	bool flag = true;
-    int tmp_x[4], tmp_y[4];
+	int tmp_x[4], tmp_y[4];
 
 	for (int i = 0; i < 4; i++)
-    {
-        tmp_x[i] = tetro_x[i];
+	{
+		tmp_x[i] = tetro_x[i];
 		tmp_y[i] = tetro_y[i];
-    }
-    for (int i = 1; i <= 4; i++)
-    {
+	}
+	for (int i = 1; i <= 4; i++)
+	{
 		bool flag2 = true;
 
 		for (int j = 0; j < 4; j++)
 		{
 			tetro_x[j] = tmp_x[i % 4] + dx * (tmp_y[i % 4] - tmp_y[j]);
-        	tetro_y[j] = dx * (tmp_x[j] - tmp_x[i % 4]) + tmp_y[i % 4];
+			tetro_y[j] = dx * (tmp_x[j] - tmp_x[i % 4]) + tmp_y[i % 4];
 
 			if (tetro_x[j] < 0
-				 || tetro_x[j] >= board_col
-				 || (tetro_y[j] >= 0
-				 && (tetro_y[j] >= board_row
-				 || board[tetro_y[j]][tetro_x[j]])))
+				|| tetro_x[j] >= board_col
+				|| (tetro_y[j] >= 0
+				&& (tetro_y[j] >= board_row
+				|| board[tetro_y[j]][tetro_x[j]])))
 			{
 				flag2 = false;
 				break;
 			}
 		}
-        if (flag2)
+		if (flag2)
 		{
 			flag = false;
 			break;
 		}
-    }
-    
-    if (flag)
+	}
+
+	if (flag)
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -597,9 +736,9 @@ bool Board::dropTetro()
 {
 	bool flag = false;
 
-    for (int i = 0; i < 4; i++)
-    {
-        tetro_y[i] += 1;
+	for (int i = 0; i < 4; i++)
+	{
+		tetro_y[i] += 1;
 
 		if (tetro_y[i] >= 1
 			 && (tetro_y[i] >= board_row
@@ -607,19 +746,20 @@ bool Board::dropTetro()
 		{
 			flag = true;
 		}
-    }
-    if (flag)
-    {
-        for (int i = 0; i < 4; i++)
-        {
+	}
+	if (flag)
+	{
+		for (int i = 0; i < 4; i++)
+		{
 			tetro_y[i]--;
-			if (tetro_y[i] < 0)
+			if (tetro_y[i] <= 0)
 			{
+				state = 3;
 				continue;
 			}
-            board[tetro_y[i]][tetro_x[i]] = tetro_type;
-        }
-    }
+			board[tetro_y[i]][tetro_x[i]] = tetro_type;
+		}
+	}
 	return flag;
 }
 
