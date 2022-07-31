@@ -132,6 +132,20 @@ int main()
 	icon.loadFromFile("icon.png");
 	window.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
 
+	sf::Music music;
+	music.openFromFile("Naughty.ogg");
+	music.setLoop(true);
+
+	sf::SoundBuffer statebuf[4];
+	statebuf[0].loadFromFile("Begin.wav");
+	statebuf[2].loadFromFile("Pause.wav");
+	statebuf[3].loadFromFile("Die.wav");
+	sf::Sound state[4];
+	for (int i = 0; i < 4; i++)
+	{
+		state[i].setBuffer(statebuf[i]);
+	}
+
 	std::ifstream istream("best.txt");
 	int table[(MAXLEVEL + 1) * 2];
 	int checker;
@@ -158,6 +172,8 @@ int main()
 	double timer = 0;
 	double delay = 0;
 	bool hard = false;
+	bool harddrop = false;
+	bool play = true;
 	double fac[10] = {1e20, 1.0};
 	int level = 1, tmp_level = 1;
 
@@ -170,6 +186,13 @@ int main()
 	{
 		if (board->getState() == 1)
 		{
+			if (music.getStatus() != sf::SoundSource::Status::Playing)
+			{
+				state[2].setPitch(level ? 0.53 / fac[level > 5 ? 5 : level] : 0.53);
+				state[3].setPitch(level ? 0.53 / fac[level > 5 ? 5 : level] : 0.53);
+				music.setPitch(level ? 0.53 / fac[level > 5 ? 5 : level] : 0.53);
+				music.play();
+			}
 			delay = speed * fac[level];
 
 			float time = clock.getElapsedTime().asSeconds();
@@ -212,11 +235,8 @@ int main()
 
 					case sf::Keyboard::Enter:
 
-						while (!board->dropTetro());
-						if (board->getState() == 1)
-						{
-							board->initTetro(board->selectTetro());
-						}
+						delay = level ? speed * fac[level] * 0.125 : 0;
+						harddrop = true;
 						break;
 					
 					case sf::Keyboard::P:
@@ -227,17 +247,23 @@ int main()
 				}
 				if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 				{
-					delay = level ? speed * fac[level] * 0.1 : 0;
+					delay = level ? speed * fac[level] * 0.125 : 0;
 				}
 			}
 			if (timer > delay)
 			{
-				if (board->dropTetro())
+				if (harddrop)
+				{
+					while (!board->dropTetro());
+				}
+				if (harddrop || board->dropTetro())
 				{
 					if (board->getState() == 1)
 					{
 						board->initTetro(board->selectTetro());
+						play = true;
 					}
+					harddrop = false;
 				}
 				timer = 0;
 			}
@@ -250,6 +276,19 @@ int main()
 		}
 		else
 		{
+			if (board->getState() == 2)
+			{
+				music.pause();
+			}
+			else
+			{
+				music.stop();
+			}
+			if (play)
+			{
+				state[board->getState()].play();
+				play = false;
+			}
 			sf::Event e;
 			bool start = false;
 
@@ -278,7 +317,9 @@ int main()
 						if (board->getState() == 2)
 						{
 							level = tmp_level;
+							state[2].stop();
 							board->setState(1);
+							play = true;
 						}
 						break;
 					
@@ -298,8 +339,10 @@ int main()
 				{
 					delete board;
 					int que = hard ? 0 : rand() % 7 + 1;
+					state[board->getState()].stop();
 					board = new Board(20, 10, rand() % 4 + 3, NULL, que);
 					board->setState(1);
+					play = true;
 				}
 			}
 
@@ -398,7 +441,6 @@ void Board::updateHash()
 			continue;
 		}
 		board[tetro_y[i]][tetro_x[i]] = 8;
-		
 	}
 	for (int i = 0; i < board_row; i++)
 	{
@@ -484,6 +526,11 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 		window->draw(assets->text);
 	}
 
+	for (int i = 0; i < 4; i++)
+	{
+		board[tetro_y[i]][tetro_x[i]] = tetro_type;
+	}
+
 	for (int i = 0; i < board_row; i++)
 	{
 		for (int j = 0; j < board_col; j++)
@@ -506,16 +553,7 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 	}
 	for (int i = 0; i < 4; i++)
 	{
-		if (tetro_y[i] < 0)
-		{
-			continue;
-		}
-		sf::IntRect rect = sf::IntRect(tetro_type * 32 - 32, 0, 32, 36);
-		assets->tiles.setTextureRect(rect);
-		assets->tiles.setPosition(tetro_x[i] * 32, tetro_y[i] * 32 + 28);
-		assets->tiles.move(32, 30);
-
-		window->draw(assets->tiles);
+		board[tetro_y[i]][tetro_x[i]] = 0;
 	}
 }
 
@@ -761,8 +799,8 @@ void Board::rotateTetro(int dx)
 
 			for (int j = 0; j < 4; j++)
 			{
-				tetro_x[j] = tx - dx * (ty - tmp_y[j]) + cx[i] - cy[i];
-				tetro_y[j] = ty - dx * (tmp_x[j] - tx) + cy[i] + cx[i];
+				tetro_x[j] = tx - dx * (ty - tmp_y[j]) + cx[i];
+				tetro_y[j] = ty - dx * (tmp_x[j] - tx) - cy[i];
 
 				if (tetro_x[j] < 0
 					|| tetro_x[j] >= board_col
@@ -785,17 +823,17 @@ void Board::rotateTetro(int dx)
 		int tx = tmp_x[0], ty = tmp_y[0];
 		int fx = dx * ((rot ^ (rot >> 1)) & 1 ? -1 : 1);
 		int fy = dx * (rot & 1 ? -1 : 1);
-		int cx[5] = {tx, tx - fx, tx - fx, tx, tx - fx};
-		int cy[5] = {ty, ty, ty - fy, ty + 2 * fy, ty + 2 * fy};
+		int cx[5] = {0, -fx, -fx, 0, -fx};
+		int cy[5] = {0, 0, -fy, 2 * fy, 2 * fy};
 
 		for (int i = 0; i < 5; i++)
 		{
 			bool flag2 = true;
-
+			
 			for (int j = 0; j < 4; j++)
 			{
-				tetro_x[j] = cx[i] + dx * (cy[i] - tmp_y[j]);
-				tetro_y[j] = dx * (tmp_x[j] - cx[i]) + cy[i];
+				tetro_x[j] = tx + dx * (ty - tmp_y[j]) + cx[i];
+				tetro_y[j] = dx * (tmp_x[j] - tx) + ty + cy[i];
 
 				if (tetro_x[j] < 0
 					|| tetro_x[j] >= board_col
