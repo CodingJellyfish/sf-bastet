@@ -1,4 +1,8 @@
-## Bastet demo
+## SF Bastet
+
+Simple and Fast Bastet. Made with SFML.
+
+### Introduction
 
 "For people who enjoy swearing at their computer, Bastet (short for Bastard Tetris) is an attractive alternative to Microsoft Word."
 
@@ -10,6 +14,7 @@ Have you ever thought Tetris(R) was evil because it wouldn't send you that strai
 * Better evaluation function, which makes block look more random but still close to worst.
 * Fancy pixel-styled interface with music.
 * Less than 900 lines of code.
+* Standard Rotation System.
 
 ### Instructions
 The game is pretty self-explanatory; use the arrow keys and <space> or <enter> to browse through the menus, set the keys to anything you're comfortable with, and hit "Play!".

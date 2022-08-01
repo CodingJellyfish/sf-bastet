@@ -504,35 +504,47 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 
 	for (int i = 0; i < 4; i++)
 	{
-		board[tetro_y[i]][tetro_x[i]] = tetro_type + 10;
+		board[tetro_y[i]][tetro_x[i]] = 8;
 	}
 
 	for (int i = 0; i < board_row; i++)
 	{
 		for (int j = 0; j < board_col; j++)
 		{
-			int padding = board[i][j] >= 10 ? 2 : 0;
-			board[i][j] = board[i][j] >= 10 ? board[i][j] - 10 : board[i][j];
-
-			if (!board[i][j]) 
-			{
-				continue; 
-			}
-			sf::IntRect rect = sf::IntRect(board[i][j] * 32 - 32, 0, 32, 36);
+			sf::IntRect rect = sf::IntRect(board[i][j] * 32, 0, 32, 36);
 			assets->tiles.setTextureRect(rect);
 			assets->tiles.setPosition(j * 32, i * 32 + 32);
-			assets->tiles.move(32, 28 - padding);
+			assets->tiles.move(32, 28);
 
 			window->draw(assets->tiles);
 		}
 	}
-	if (tetro_type == 0)
-	{
-		return;
-	}
+
+	bool vis[4] = {false, false, false, false};
 	for (int i = 0; i < 4; i++)
 	{
-		board[tetro_y[i]][tetro_x[i]] = 0;
+		int min = board_row, mini = 0;
+		for (int j = 0; j < 4; j++)
+		{
+			if (!vis[j] && tetro_y[j] < min)
+			{
+				min = tetro_y[j];
+				mini = j;
+			}
+		}
+		vis[mini] = true;
+		if (min < 0)
+		{
+			continue;
+		}
+		sf::IntRect rect = sf::IntRect(tetro_type * 32, 0, 32, 36);
+		assets->tiles.setTextureRect(rect);
+		assets->tiles.setPosition(tetro_x[mini] * 32, tetro_y[mini] * 32 + 32);
+		assets->tiles.move(32, 24);
+
+		window->draw(assets->tiles);
+
+		board[tetro_y[mini]][tetro_x[mini]] = 0;
 	}
 }
 
@@ -612,7 +624,7 @@ int Board::searchMax(int tet, std::unordered_set<unsigned long long> &set)
 			return flag ? 0.0 : emu.evaluateBoard();
 		}
 		std::unordered_set<unsigned long long> set2;
-		res = emu.checkLine() * 100;
+		res = emu.checkLine() * 101;
 		res += emu.searchMax(0, set2);
 		ret = std::max(res, ret);
 	}
@@ -691,8 +703,8 @@ void Board::initTetro(int tet)
 	{
 		if (i != tet - 1)
 		{
-			occur[tet - 1] /= 1.2;
-			occur[i] *= 1.2;
+			occur[tet - 1] /= 1.3;
+			occur[i] *= 1.3;
 		}
 	}
 	rot = 0;
