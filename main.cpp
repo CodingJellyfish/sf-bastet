@@ -52,7 +52,7 @@ class Board
 		Board(int row, int col, int tetro, int** begin_board = NULL, int que = 0);
 		~Board();
 
-		void updateHash();
+		void changeBoard(int x, int y, int val);
 
 		unsigned long long hashBoard();
 
@@ -407,15 +407,19 @@ Board::Board(int row, int col, int tetro, int** begin_board, int que)
 
 	queue = que;
 	initTetro(tetro);
+	
+	hash = 0;
 
 	if (begin_board)
 	{
 		for (int i = 0; i < row; i++)
 		{
-			memcpy(board[i], begin_board[i], sizeof(int) * col);
+			for (int j = 0; j < col; j++)
+			{
+				changeBoard(j, i, begin_board[i][j]);
+			}
 		}
 	}
-	updateHash();
 }
 
 Board::~Board()
@@ -427,16 +431,10 @@ Board::~Board()
 	delete[] _board;
 }
 
-void Board::updateHash()
+void Board::changeBoard(int x, int y, int val)
 {
-	hash = 0;
-	for (int i = 0; i < board_row; i++)
-	{
-		for (int j = 0; j < board_col; j++)
-		{
-			hash += board[i][j] ? fac11[i * board_col + j] : 0;
-		}
-	}
+	hash += fac11[y * board_col + x] * ((!!val) - (!!board[y][x]));
+	board[y][x] = val;
 }
 
 unsigned long long Board::hashBoard()
@@ -553,7 +551,7 @@ int Board::checkLine()
 			{
 				count++;
 			}
-			board[k][j] = board[i][j];
+			changeBoard(j, k, board[i][j]);
 		}
 		if (count < board_col)
 		{
@@ -566,7 +564,6 @@ int Board::checkLine()
 			sum += 100;
 		}
 	}
-	updateHash();
 	return ret;
 }
 
@@ -603,13 +600,12 @@ int Board::searchMax(int tet, std::unordered_set<unsigned long long> &set)
 	
 		for (int i = 0; i < 4; i++)
 		{
-			board[tetro_y[i]][tetro_x[i]] = 0;
+			changeBoard(tetro_x[i], tetro_y[i], 0);
 			if (tetro_y[i] <= 0)
 			{
 				flag = true;
 			}
 		}
-		updateHash();
 
 		if (!tet)
 		{
@@ -864,10 +860,9 @@ bool Board::dropTetro(int *state)
 			}
 			if (tetro_y[i] >= 0)
 			{
-				board[tetro_y[i]][tetro_x[i]] = tetro_type;
+				changeBoard(tetro_x[i], tetro_y[i], tetro_type);
 			}
 		}
-		updateHash();
 	}
 	return flag;
 }
