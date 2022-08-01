@@ -487,7 +487,7 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 
 	if (queue)
 	{
-		sf::IntRect rect = sf::IntRect(queue * 32 - 32, 0, 32, 36);
+		sf::IntRect rect = sf::IntRect(queue * 32, 0, 32, 36);
 		assets->tiles.setTextureRect(rect);
 		assets->tiles.setPosition(440, 408);
 		assets->tiles.setScale(1.5f, 1.5f);
