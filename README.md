@@ -20,14 +20,13 @@ Have you ever thought Tetris(R) was evil because it wouldn't send you that strai
 The game is pretty self-explanatory; use the arrow keys and <space> or <enter> to browse through the menus, set the keys to anything you're comfortable with, and hit "Play!".
 
 The default keys are as follows:
-* Down	      Down, or decrease level in main menu
-* Left	      Left
-* Right	      Right
-* Space bar   Rotate tetromino clockwise, or choose difficulty in main menu
-* Up	      Rotate tetromino counterclockwise, or increase level in main menu
-* Enter	      "Hard-drop" tetromino (like pressing "Down" continuously), or start game in main menu
-* p	          Pause
-* control+C   Quits the game immediately and without asking anything
+* Down: Down, or decrease level in main menu
+* Left: Left
+* Right: Right
+* Space: Rotate tetromino clockwise, or choose difficulty in main menu
+* Up: Rotate tetromino counterclockwise, or increase level in main menu
+* Enter: "Hard-drop" tetromino (like pressing "Down" continuously), or start game in main menu
+* p: Pause
 
 ### Normal/Harder
 
@@ -38,7 +37,7 @@ See the INSTALL.md file in this same directory.
 
 ### Credit
 
-Algorithm and README from fph/bastet
+Algorithm and README from Federico Poloni
 
 Dogica font by Roberto Mocci
 

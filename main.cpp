@@ -238,19 +238,19 @@ int main()
 
 					case sf::Keyboard::Enter:
 
-						delay = level ? speed * fac[level] * 0.125 : 0;
+						delay = level ? speed * fac[level] * 0.125 : 0.125;
 						harddrop = true;
 						break;
 					
 					case sf::Keyboard::P:
 
-						stat = 2;;
+						stat = 2;
 						break;
 					}
 				}
 				if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 				{
-					delay = level ? speed * fac[level] * 0.125 : 0;
+					delay = 0;
 				}
 			}
 			if (timer > delay)
@@ -454,7 +454,7 @@ unsigned long long Board::hashBoard()
 
 int Board::evaluateBoard()
 {
-	int ret = checkLine() * 100, min = board_row;
+	int ret = checkLine() * 1000, min = board_row;
 
 	for (int i = 0; i < board_col; i++)
 	{
@@ -533,6 +533,7 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 			}
 		}
 		vis[mini] = true;
+		board[tetro_y[mini]][tetro_x[mini]] = 0;
 		if (min < 0)
 		{
 			continue;
@@ -543,8 +544,6 @@ void Board::drawBoard(sf::RenderWindow *window, Assets *assets)
 		assets->tiles.move(32, 24);
 
 		window->draw(assets->tiles);
-
-		board[tetro_y[mini]][tetro_x[mini]] = 0;
 	}
 }
 
@@ -605,36 +604,47 @@ int Board::searchMax(int tet, std::unordered_set<unsigned long long> &set)
 		tmp_y[i] = tetro_y[i];
 	}
 
-	if (dropTetro())
+	int state = 0;
+	if (dropTetro(&state))
 	{
-		Board emu(board_row, board_col, tet ? tet : 1, board);
-		bool flag = false;
-	
+		if (tet == 0)
+		{
+			Board emu(board_row, board_col, 1, board);
+			ret = std::max(ret, state == 3 ? 0 : emu.evaluateBoard());
+		}
+		else if (state != 3)
+		{
+			int res2[7];
+
+			for (int i = tet == 8 ? 1 : tet; i <= (tet == 8 ? 7 : tet); i++)
+			{
+				Board emu(board_row, board_col, i, board);
+				std::unordered_set<unsigned long long> set2;
+				res2[i - 1] = emu.checkLine() * 1010;
+				res2[i - 1] += emu.searchMax(0, set2);
+			}
+			if (tet == 8)
+			{
+				std::sort(res2, res2 + 7);
+				ret = std::max(ret, (int)(0.8 * res2[0] + 0.2 * res2[1]));
+			}
+			else
+			{
+				ret = std::max(ret, res2[tet - 1]);
+			}
+		}
 		for (int i = 0; i < 4; i++)
 		{
 			changeBoard(tetro_x[i], tetro_y[i], 0);
-			if (tetro_y[i] <= 0)
-			{
-				flag = true;
-			}
 		}
-
-		if (!tet)
-		{
-			return flag ? 0.0 : emu.evaluateBoard();
-		}
-		std::unordered_set<unsigned long long> set2;
-		res = emu.checkLine() * 101;
-		res += emu.searchMax(0, set2);
-		ret = std::max(res, ret);
 	}
 	else UPDATE
 
 	moveTetro(-1);
 	UPDATE
-	moveTetro(1);
-	UPDATE
 	rotateTetro(-1);
+	UPDATE
+	moveTetro(1);
 	UPDATE
 	rotateTetro(1);
 	UPDATE
@@ -650,26 +660,10 @@ int Board::selectTetro()
 
 	for (int i = 1; i <= 7; i++)
 	{
-		if (!queue)
-		{
-			double res2[7];
-			for (int j = 1; j <= 7; j++)
-			{
-				std::unordered_set<unsigned long long> set;
-				Board emu(board_row, board_col, i, board);
-				res2[j - 1] = emu.searchMax(j, set);
-			}
-			std::sort(res2, res2 + 7);
-			res[i - 1].first = res2[0] * 0.8 + res2[1] * 0.2 - occur[i - 1];
-			res[i - 1].second = i;
-		}
-		else
-		{
-			std::unordered_set<unsigned long long> set;
-			Board emu(board_row, board_col, queue, board);
-			res[i - 1].first = emu.searchMax(i, set) - occur[i - 1];
-			res[i - 1].second = i;
-		}
+		std::unordered_set<unsigned long long> set;
+		Board emu(board_row, board_col, queue ? queue : i, board);
+		res[i - 1].first = emu.searchMax(queue ? i : 8, set) - occur[i - 1];
+		res[i - 1].second = i;
 	}
 	std::sort(res, res + 7);
 
@@ -760,80 +754,47 @@ void Board::rotateTetro(int dx)
 		rot = (rot + 3) % 4;
 	}
 
-	if (tetro_type == 6)
+	int ind = tetro_type == 6 ? (dx == 1 ? 1 + (rot & 1) : 2 - (rot & 1)) : 0;
+	int fx = dx * ((rot ^ (rot >> 1)) & 1 ? -1 : 1);
+	int fy = dx * (rot & (1 << (tetro_type == 6)) ? -1 : 1);
+	int cx[2][5] = {0, -fx, -fx, 0, -fx, 0, -2 * fx, fx, -2 * fx, fx};
+	int cy[2][5] = {0, 0, fy, -2 * fy, -2 * fy, 0, 0, 0, -fy, 2 * fy};
+	int t6 = tetro_type == 6 ? -1 : 1;
+
+	if (rot & 1)
 	{
-		int ind = dx == 1 ? 1 + (rot & 1) : 2 - (rot & 1);
-		int fx = dx * ((rot ^ (rot >> 1)) & 1 ? -1 : 1);
-		int fy = dx * (rot & 2 ? -1 : 1);
-		int tx = tmp_x[ind], ty = tmp_y[ind];
-		int cx[5] = {0, -2 * fx, fx, -2 * fx, fx};
-		int cy[5] = {0, 0, 0, -fy, 2 * fy};
+		std::swap(cx[1][1], cx[1][2]);
+		std::swap(cx[1][3], cy[1][3]);
+		std::swap(cx[1][4], cy[1][4]);
+	}
 
-		if (rot & 1)
+	for (int i = 0; i < 5; i++)
+	{
+		bool flag2 = true;
+
+		for (int j = 0; j < 4; j++)
 		{
-			std::swap(cx[1], cx[2]);
-			std::swap(cx[3], cy[3]);
-			std::swap(cx[4], cy[4]);
-		}
+			tetro_x[j] = tmp_x[ind] + t6 * dx * (tmp_y[ind] - tmp_y[j])
+			           + cx[tetro_type == 6][i];
+			tetro_y[j] = tmp_y[ind] + t6 * dx * (tmp_x[j] - tmp_x[ind])
+			           - cy[tetro_type == 6][i];
 
-		for (int i = 0; i < 5; i++)
-		{
-			bool flag2 = true;
-
-			for (int j = 0; j < 4; j++)
+			if (tetro_x[j] < 0
+				|| tetro_x[j] >= board_col
+				|| tetro_y[j] >= board_row
+				|| board[tetro_y[j]][tetro_x[j]])
 			{
-				tetro_x[j] = tx - dx * (ty - tmp_y[j]) + cx[i];
-				tetro_y[j] = ty - dx * (tmp_x[j] - tx) - cy[i];
-
-				if (tetro_x[j] < 0
-					|| tetro_x[j] >= board_col
-					|| tetro_y[j] >= board_row
-					|| board[tetro_y[j]][tetro_x[j]])
-				{
-					flag2 = false;
-					break;
-				}
-			}
-			if (flag2)
-			{
-				flag = false;
+				flag2 = false;
 				break;
 			}
 		}
-	}
-	else
-	{
-		int tx = tmp_x[0], ty = tmp_y[0];
-		int fx = dx * ((rot ^ (rot >> 1)) & 1 ? -1 : 1);
-		int fy = dx * (rot & 1 ? -1 : 1);
-		int cx[5] = {0, -fx, -fx, 0, -fx};
-		int cy[5] = {0, 0, -fy, 2 * fy, 2 * fy};
-
-		for (int i = 0; i < 5; i++)
+		if (flag2)
 		{
-			bool flag2 = true;
-			
-			for (int j = 0; j < 4; j++)
-			{
-				tetro_x[j] = tx + dx * (ty - tmp_y[j]) + cx[i];
-				tetro_y[j] = dx * (tmp_x[j] - tx) + ty + cy[i];
-
-				if (tetro_x[j] < 0
-					|| tetro_x[j] >= board_col
-					|| tetro_y[j] >= board_row
-					|| board[tetro_y[j]][tetro_x[j]])
-				{
-					flag2 = false;
-					break;
-				}
-			}
-			if (flag2)
-			{
-				flag = false;
-				break;
-			}
+			flag = false;
+			break;
 		}
 	}
+
 	if (flag)
 	{
 		for (int i = 0; i < 4; i++)
@@ -876,6 +837,7 @@ bool Board::dropTetro(int *state)
 			}
 		}
 	}
+	
 	return flag;
 }
 
